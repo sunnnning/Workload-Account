@@ -60,7 +60,7 @@
                 <li>常规课程工作量 = 计划学时 × 课程系数 × 合班系数</li>
                 <li>毕业设计工作量 = 14 × 合班人数（仅需填人数，固定14课时/人）</li>
                 <li>金工实习/实验课：直接填入工作量，无需计算，直接计入总工作量</li>
-                <li>常规课程系数：公共基础课/专业基础课=1.1，其他课程=1.0</li>
+                <li>常规课程系数：公共基础课（大）/专业基础课=1.1，其他课程=1.0</li>
                 <li>合班系数挡位：
                     <ul class="list-circle list-inside ml-4">
                         <li>≤40人=1.1 | 41-50人=1.15 | 51-60人=1.2 | 61-70人=1.25</li>
@@ -89,7 +89,7 @@
                             <select id="course-type" name="course-type"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" required>
                                 <option value="">请选择课程类型</option>
-                                <option value="public-basic">公共基础课</option>
+                                <option value="public-basic">公共基础课（大）</option>
                                 <option value="major-basic">专业基础课</option>
                                 <option value="normal">其他课程</option>
                                 <option value="grad-design">毕业设计</option>
@@ -402,7 +402,7 @@
             totalCoursesEl.textContent = totalCourses;
             totalHoursEl.textContent = totalHours;
             totalWorkloadEl.textContent = totalWorkload;
-                 // 关键：将最新课程数据保存到本地存储（刷新/关闭页面后不丢失）
+        // 关键：将最新课程数据保存到本地存储（刷新/关闭页面后不丢失）
             localStorage.setItem('courses', JSON.stringify(courses));
         }
 
@@ -448,7 +448,7 @@
         // 获取课程类型名称
         function getTypeName(type) {
             const map = {
-                'public-basic': '公共基础课',
+                'public-basic': '公共基础课（大）',
                 'major-basic': '专业基础课',
                 'normal': '其他课程',
                 'grad-design': '毕业设计',
@@ -497,7 +497,7 @@
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             setCurrentDate();
-             // 关键：页面加载时，从本地存储读取之前保存的课程数据
+                    // 关键：页面加载时，从本地存储读取之前保存的课程数据
             const savedCourses = localStorage.getItem('courses');
             if (savedCourses) {
                 // 解析本地存储的JSON数据到courses数组
