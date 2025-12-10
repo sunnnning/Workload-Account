@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课时工作量计算工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        // 配置Tailwind自定义样式
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4f46e5',
+                        secondary: '#6366f1',
+                        accent: '#818cf8',
+                        neutral: '#f3f4f6',
+                        dark: '#1e293b'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-dark">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-[clamp(1.25rem,3vw,1.75rem)] font-bold text-primary flex items-center">
+                <i class="fa fa-calculator mr-2"></i>课时工作量计算工具
+            </h1>
+            <div class="text-sm text-gray-500">
+                <span id="current-date"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- 说明区域 -->
+        <div class="bg-blue-50 border-l-4 border-primary p-4 mb-6 rounded-r">
+            <h3 class="font-semibold text-lg mb-2">计算说明</h3>
+            <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm md:text-base">
+                <li>理论课工作量 = 课时数 × 班级人数系数（≤40人系数1.0，41-60人系数1.2，61人以上系数1.4）</li>
+                <li>实训课工作量 = 课时数 × 1.5（实训课基础系数）× 班级人数系数</li>
+                <li>辅导课工作量 = 课时数 × 0.8（辅导课基础系数）</li>
+                <li>其他课程工作量 = 课时数 × 自定义系数</li>
+            </ul>
+        </div>
+
+        <!-- 计算表单区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- 课程添加表单 -->
+            <div class="lg:col-span-2 bg-white rounded-lg p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 pb-2 border-b border-gray-200">添加课程信息</h2>
+                <form id="course-form" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="course-name" class="block text-sm font-medium text-gray-700 mb-1">课程名称</label>
+                            <input type="text" id="course-name" name="course-name" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" 
+                                placeholder="例如：高等数学" required>
+                        </div>
+                        <div>
+                            <label for="course-type" class="block text-sm font-medium text-gray-700 mb-1">课程类型</label>
+                            <select id="course-type" name="course-type" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" required>
+                                <option value="">请选择课程类型</option>
+                                <option value="theory">理论课</option>
+                                <option value="practice">实训课</option>
+                                <option value="tutoring">辅导课</option>
+                                <option value="other">其他课程</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="class-size" class="block text-sm font-medium text-gray-700 mb-1">班级人数</label>
+                            <input type="number" id="class-size" name="class-size" min="1" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" 
+                                placeholder="例如：45" required>
+                        </div>
+                        <div>
+                            <label for="class-hours" class="block text-sm font-medium text-gray-700 mb-1">课时数</label>
+                            <input type="number" id="class-hours" name="class-hours" min="0.5" step="0.5" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" 
+                                placeholder="例如：64" required>
+                        </div>
+                    </div>
+
+                    <div id="custom-coefficient-container" class="hidden">
+                        <label for="custom-coefficient" class="block text-sm font-medium text-gray-700 mb-1">自定义系数</label>
+                        <input type="number" id="custom-coefficient" name="custom-coefficient" min="0.1" step="0.1" value="1.0"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" 
+                            placeholder="例如：1.2">
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center">
+                            <i class="fa fa-plus mr-2"></i>添加课程
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 总计信息 -->
+            <div class="bg-white rounded-lg p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 pb-2 border-b border-gray-200">工作量总计</h2>
+                <div class="space-y-4">
+                    <div class="p-4 bg-neutral rounded-lg">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-gray-600">课程总数：</span>
+                            <span class="font-semibold text-lg" id="total-courses">0</span>
+                        </div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-gray-600">总课时数：</span>
+                            <span class="font-semibold text-lg" id="total-hours">0</span>
+                        </div>
+                        <div class="flex justify-between pt-2 border-t border-gray-200">
+                            <span class="text-gray-600 font-medium">总工作量：</span>
+                            <span class="font-bold text-xl text-primary" id="total-workload">0.0</span>
+                        </div>
+                    </div>
+
+                    <button id="clear-all" class="w-full px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors flex items-center justify-center">
+                        <i class="fa fa-trash mr-2"></i>清空所有课程
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 课程列表区域 -->
+        <div class="bg-white rounded-lg p-6 card-shadow">
+            <h2 class="text-xl font-semibold mb-4 pb-2 border-b border-gray-200">已添加课程列表</h2>
+            <div id="course-list-empty" class="text-center py-8 text-gray-500">
+                <i class="fa fa-file-text-o text-4xl mb-2"></i>
+                <p>暂无课程数据，请添加课程</p>
+            </div>
+            <div id="course-list" class="overflow-x-auto hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">课程名称</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">课程类型</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">班级人数</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">课时数</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">系数</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">工作量</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="course-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- 课程数据将通过JS动态添加 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white mt-12 py-6 border-t border-gray-200">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>© 2025 课时工作量计算工具 | 本工具仅用于辅助计算，实际工作量以学校规定为准</p>
+        </div>
+    </footer>
+
+    <script>
+        // 初始化变量
+        let courses = [];
+        let totalCourses = 0;
+        let totalHours = 0;
+        let totalWorkload = 0;
+
+        // DOM元素
+        const courseForm = document.getElementById('course-form');
+        const courseType = document.getElementById('course-type');
+        const customCoefficientContainer = document.getElementById('custom-coefficient-container');
+        const courseListEmpty = document.getElementById('course-list-empty');
+        const courseList = document.getElementById('course-list');
+        const courseTableBody = document.getElementById('course-table-body');
+        const totalCoursesEl = document.getElementById('total-courses');
+        const totalHoursEl = document.getElementById('total-hours');
+        const totalWorkloadEl = document.getElementById('total-workload');
+        const clearAllBtn = document.getElementById('clear-all');
+        const currentDateEl = document.getElementById('current-date');
+
+        // 设置当前日期
+        function setCurrentDate() {
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            currentDateEl.textContent = now.toLocaleDateString('zh-CN', options);
+        }
+
+        // 显示自定义系数输入框
+        courseType.addEventListener('change', function() {
+            if (this.value === 'other') {
+                customCoefficientContainer.classList.remove('hidden');
+            } else {
+                customCoefficientContainer.classList.add('hidden');
+            }
+        });
+
+        // 计算人数系数
+        function getSizeCoefficient(classSize) {
+            if (classSize <= 40) return 1.0;
+            if (classSize <= 60) return 1.2;
+            return 1.4;
+        }
+
+        // 计算课程工作量
+        function calculateWorkload(course) {
+            let baseCoefficient = 1.0;
+            
+            switch(course.type) {
+                case 'theory':
+                    baseCoefficient = 1.0;
+                    break;
+                case 'practice':
+                    baseCoefficient = 1.5;
+                    break;
+                case 'tutoring':
+                    baseCoefficient = 0.8;
+                    break;
+                case 'other':
+                    baseCoefficient = parseFloat(course.customCoeff);
+                    break;
+            }
+
+            // 辅导课不计算人数系数
+            const sizeCoeff = course.type === 'tutoring' ? 1.0 : getSizeCoefficient(course.size);
+            const totalCoeff = (baseCoefficient * sizeCoeff).toFixed(2);
+            const workload = (course.hours * baseCoefficient * sizeCoeff).toFixed(2);
+
+            return {
+                coefficient: totalCoeff,
+                workload: workload
+            };
+        }
+
+        // 添加课程
+        courseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // 获取表单数据
+            const courseName = document.getElementById('course-name').value.trim();
+            const courseTypeVal = courseType.value;
+            const classSize = parseInt(document.getElementById('class-size').value);
+            const classHours = parseFloat(document.getElementById('class-hours').value);
+            const customCoeff = document.getElementById('custom-coefficient')?.value || '1.0';
+
+            // 创建课程对象
+            const course = {
+                id: Date.now(),
+                name: courseName,
+                type: courseTypeVal,
+                size: classSize,
+                hours: classHours,
+                customCoeff: customCoeff
+            };
+
+            // 计算工作量
+            const workloadData = calculateWorkload(course);
+            course.coefficient = workloadData.coefficient;
+            course.workload = workloadData.workload;
+
+            // 添加到课程列表
+            courses.push(course);
+            
+            // 更新统计数据
+            updateStatistics();
+            
+            // 更新课程列表
+            renderCourseList();
+            
+            // 重置表单
+            courseForm.reset();
+            customCoefficientContainer.classList.add('hidden');
+            
+            // 提示添加成功
+            alert('课程添加成功！');
+        });
+
+        // 更新统计数据
+        function updateStatistics() {
+            totalCourses = courses.length;
+            totalHours = courses.reduce((sum, course) => sum + course.hours, 0);
+            totalWorkload = courses.reduce((sum, course) => sum + parseFloat(course.workload), 0);
+
+            // 更新DOM
+            totalCoursesEl.textContent = totalCourses;
+            totalHoursEl.textContent = totalHours.toFixed(1);
+            totalWorkloadEl.textContent = totalWorkload.toFixed(2);
+        }
+
+        // 渲染课程列表
+        function renderCourseList() {
+            if (courses.length === 0) {
+                courseListEmpty.classList.remove('hidden');
+                courseList.classList.add('hidden');
+                return;
+            }
+
+            courseListEmpty.classList.add('hidden');
+            courseList.classList.remove('hidden');
+            
+            // 清空表格
+            courseTableBody.innerHTML = '';
+            
+            // 添加课程行
+            courses.forEach(course => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                
+                // 课程类型显示文本
+                let typeText = '';
+                switch(course.type) {
+                    case 'theory': typeText = '理论课'; break;
+                    case 'practice': typeText = '实训课'; break;
+                    case 'tutoring': typeText = '辅导课'; break;
+                    case 'other': typeText = '其他课程'; break;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${course.name}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">${typeText}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">${course.size}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">${course.hours}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">${course.coefficient}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-primary">${course.workload}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button data-id="${course.id}" class="delete-course text-red-600 hover:text-red-900 mr-3">
+                            <i class="fa fa-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                
+                courseTableBody.appendChild(tr);
+            });
+
+            // 添加删除事件监听
+            document.querySelectorAll('.delete-course').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const courseId = parseInt(this.getAttribute('data-id'));
+                    deleteCourse(courseId);
+                });
+            });
+        }
+
+        // 删除课程
+        function deleteCourse(courseId) {
+            if (confirm('确定要删除该课程吗？')) {
+                courses = courses.filter(course => course.id !== courseId);
+                updateStatistics();
+                renderCourseList();
+            }
+        }
+
+        // 清空所有课程
+        clearAllBtn.addEventListener('click', function() {
+            if (courses.length === 0) {
+                alert('暂无课程数据可清空');
+                return;
+            }
+
+            if (confirm('确定要清空所有课程吗？此操作不可恢复！')) {
+                courses = [];
+                updateStatistics();
+                renderCourseList();
+            }
+        });
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            setCurrentDate();
+            updateStatistics();
+            renderCourseList();
+        });
+    </script>
+</body>
+</html>
