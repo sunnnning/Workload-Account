@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课堂教学工作量（标时）计算工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4f46e5',
+                        secondary: '#6366f1',
+                        accent: '#818cf8',
+                        neutral: '#f3f4f6',
+                        dark: '#1e293b'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-dark">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-[clamp(1.25rem,3vw,1.75rem)] font-bold text-primary flex items-center">
+                <<i class="fa fa-calculator mr-2"><</i>课堂教学工作量（标时）计算工具——Rango.V251210.1
+            </h1>
+            <div class="text-sm text-gray-500">
+                <span id="current-date"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- 说明区域 -->
+        <div class="bg-blue-50 border-l-4 border-primary p-4 mb-6 rounded-r">
+            <h3 class="font-semibold text-lg mb-2">计算说明</h3>
+            <ul class="list-disc list-inside text-gray-700 space-y-1 text-sm md:text-base">
+                <li>常规课程工作量 = 计划学时 × 课程系数 × 合班系数</li>
+                <li>毕业设计工作量 = 14 × 合班人数（仅需填人数，固定14课时/人）</li>
+                <li>金工实习/实验课：直接填入工作量，无需计算，直接计入总工作量</li>
+                <li>常规课程系数：公共基础课/专业基础课=1.1，其他课程=1.0</li>
+                <li>合班系数挡位：
+                    <ul class="list-circle list-inside ml-4">
+                        <li>≤40人=1.1 | 41-50人=1.15 | 51-60人=1.2 | 61-70人=1.25</li>
+                        <li>71-80人=1.3 | 81-90人=1.35 | 91-100人=1.4 | ≥101人=1.45</li>
+                    </ul>
+                </li>
+                <li>常规课程学时：支持直接填学时或学分（0.5学分=8课时）</li>
+            </ul>
+        </div>
+
+        <!-- 计算表单区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- 课程添加表单 -->
+            <div class="lg:col-span-2 bg-white rounded-lg p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 pb-2 border-b border-gray-200">添加课程信息</h2>
+                <form id="course-form" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="course-name" class="block text-sm font-medium text-gray-700 mb-1">课程名称（选填）</label>
+                            <input type="text" id="course-name" name="course-name"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                placeholder="例如：高等数学">
+                        </div>
+                        <div>
+                            <label for="course-type" class="block text-sm font-medium text-gray-700 mb-1">课程类型</label>
+                            <select id="course-type" name="course-type"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus" required>
+                                <option value="">请选择课程类型</option>
+                                <option value="public-basic">公共基础课</option>
+                                <option value="major-basic">专业基础课</option>
+                                <option value="normal">其他课程</option>
+                                <option value="grad-design">毕业设计</option>
+                                <option value="metal-practice">金工实习</option>
+                                <option value="experiment">实验课</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 动态输入区域 -->
+                    <div id="input-area" class="space-y-4">
+                        <!-- 常规课程：人数+学时/学分 -->
+                        <div id="normal-input-group" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="class-size" class="block text-sm font-medium text-gray-700 mb-1">合班/分组人数</label>
+                                <input type="number" id="class-size" name="class-size" min="1"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                    placeholder="例如：45" required>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-4 mb-1">
+                                    <div>
+                                        <input type="radio" id="input-hours" name="hour-type" value="hours" checked
+                                            class="peer sr-only">
+                                        <label for="input-hours" class="inline-flex items-center px-2 py-1 rounded border cursor-pointer transition-colors peer-checked:bg-primary/10 peer-checked:border-primary peer-checked:text-primary">
+                                            填学时
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <input type="radio" id="input-credit" name="hour-type" value="credit"
+                                            class="peer sr-only">
+                                        <label for="input-credit" class="inline-flex items-center px-2 py-1 rounded border cursor-pointer transition-colors peer-checked:bg-primary/10 peer-checked:border-primary peer-checked:text-primary">
+                                            填学分（0.5学分=8课时）
+                                        </label>
+                                    </div>
+                                </div>
+                                <div id="hours-input">
+                                    <label for="class-hours" class="block text-sm font-medium text-gray-700 mb-1">计划学时</label>
+                                    <input type="number" id="class-hours" name="class-hours" min="0.5" step="0.5"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                        placeholder="例如：64" required>
+                                </div>
+                                <div id="credit-input" class="hidden">
+                                    <label for="class-credit" class="block text-sm font-medium text-gray-700 mb-1">课程学分</label>
+                                    <input type="number" id="class-credit" name="class-credit" min="0.5" step="0.5"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                        placeholder="例如：4/0.5" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 毕业设计：仅人数 -->
+                        <div id="grad-design-input" class="hidden">
+                            <label for="grad-class-size" class="block text-sm font-medium text-gray-700 mb-1">合班/分组人数</label>
+                            <input type="number" id="grad-class-size" name="grad-class-size" min="1"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                placeholder="例如：45" required>
+                        </div>
+
+                        <!-- 金工实习：仅工作量 -->
+                        <div id="metal-practice-input" class="hidden">
+                            <label for="metal-workload" class="block text-sm font-medium text-gray-700 mb-1">金工实习工作量</label>
+                            <input type="number" id="metal-workload" name="metal-workload" min="0.5" step="0.5"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                placeholder="例如：80" required>
+                        </div>
+
+                        <!-- 实验课：仅工作量 -->
+                        <div id="experiment-input" class="hidden">
+                            <label for="experiment-workload" class="block text-sm font-medium text-gray-700 mb-1">实验课工作量</label>
+                            <input type="number" id="experiment-workload" name="experiment-workload" min="0.5" step="0.5"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                placeholder="例如：60" required>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors flex items-center">
+                            <<i class="fa fa-plus mr-2"><</i>添加课程
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 总计信息 -->
+            <div class="bg-white rounded-lg p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4 pb-2 border-b border-gray-200">工作量总计</h2>
+                <div class="space-y-4">
+                    <div class="p-4 bg-neutral rounded-lg">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-gray-600">课程总数：</span>
+                            <span class="font-semibold text-lg" id="total-courses">0</span>
+                        </div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-gray-600">总计划学时：</span>
+                            <span class="font-semibold text-lg" id="total-hours">0</span>
+                        </div>
+                        <div class="flex justify-between pt-2 border-t border-gray-200">
+                            <span class="text-gray-600 font-medium">总工作量（标时）：</span>
+                            <span class="font-bold text-xl text-primary" id="total-workload">0.00</span>
+                        </div>
+                    </div>
+
+                    <button id="clear-all" class="w-full px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors flex items-center justify-center">
+                        <<i class="fa fa-trash mr-2"><</i>清空所有课程
+                    </button>
+
+                    <button id="export-excel" class="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center justify-center">
+                        <<i class="fa fa-download mr-2"><</i>导出数据到Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 课程列表区域 -->
+        <div class="bg-white rounded-lg p-6 card-shadow">
+            <h2 class="text-xl font-semibold mb-4 pb-2 border-b border-gray-200">已添加课程列表</h2>
+            <div id="course-list-empty" class="text-center py-8 text-gray-500">
+                <<i class="fa fa-file-text-o text-4xl mb-2"><</i>
+                <p>暂无课程数据，请添加课程</p>
+            </div>
+            <div id="course-list" class="overflow-x-auto hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">课程名称<</th>
+                            <<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">课程类型<</th>
+                            <<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">录入信息<</th>
+                            <<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">计算说明<</th>
+                            <<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">工作量（标时）<</th>
+                            <<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作<</th>
+                        </tr>
+                    </thead>
+                    <tbody id="course-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- 课程数据动态添加 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white mt-12 py-6 border-t border-gray-200">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>© 2025 课堂教学工作量计算工具 | 实际工作量以学院规定为准</p>
+        </div>
+    </footer>
+
+    <script>
+        // 初始化变量
+        let courses = [];
+        let totalCourses = 0;
+        let totalHours = 0;
+        let totalWorkload = 0;
+
+        // DOM元素
+        const courseForm = document.getElementById('course-form');
+        const courseType = document.getElementById('course-type');
+        const courseNameInput = document.getElementById('course-name');
+        const normalInputGroup = document.getElementById('normal-input-group');
+        const gradDesignInput = document.getElementById('grad-design-input');
+        const metalPracticeInput = document.getElementById('metal-practice-input');
+        const experimentInput = document.getElementById('experiment-input');
+        const hourTypeRadios = document.querySelectorAll('input[name="hour-type"]');
+        const hoursInput = document.getElementById('hours-input');
+        const creditInput = document.getElementById('credit-input');
+        const classHoursInput = document.getElementById('class-hours');
+        const classCreditInput = document.getElementById('class-credit');
+        const metalWorkloadInput = document.getElementById('metal-workload');
+        const experimentWorkloadInput = document.getElementById('experiment-workload');
+        const courseListEmpty = document.getElementById('course-list-empty');
+        const courseList = document.getElementById('course-list');
+        const courseTableBody = document.getElementById('course-table-body');
+        const totalCoursesEl = document.getElementById('total-courses');
+        const totalHoursEl = document.getElementById('total-hours');
+        const totalWorkloadEl = document.getElementById('total-workload');
+        const clearAllBtn = document.getElementById('clear-all');
+        const currentDateEl = document.getElementById('current-date');
+        const exportExcelBtn = document.getElementById('export-excel');
+
+        // 设置当前日期
+        function setCurrentDate() {
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            currentDateEl.textContent = now.toLocaleDateString('zh-CN', options);
+        }
+
+        // 课程类型切换：自动填充名称+切换输入区域
+        courseType.addEventListener('change', function() {
+            const type = this.value;
+
+            // 自动填充课程名称
+            switch(type) {
+                case 'grad-design': courseNameInput.value = '毕业设计'; break;
+                case 'metal-practice': courseNameInput.value = '金工实习'; break;
+                case 'experiment': courseNameInput.value = '实验课'; break;
+                default: courseNameInput.value = '';
+            }
+            courseNameInput.readOnly = ['grad-design','metal-practice','experiment'].includes(type);
+
+            // 切换输入区域
+            normalInputGroup.classList.add('hidden');
+            gradDesignInput.classList.add('hidden');
+            metalPracticeInput.classList.add('hidden');
+            experimentInput.classList.add('hidden');
+            document.querySelectorAll('#input-area input').forEach(input => input.required = false);
+
+            if (['public-basic','major-basic','normal'].includes(type)) {
+                normalInputGroup.classList.remove('hidden');
+                document.getElementById('class-size').required = true;
+                classHoursInput.required = true;
+            } else if (type === 'grad-design') {
+                gradDesignInput.classList.remove('hidden');
+                document.getElementById('grad-class-size').required = true;
+            } else if (type === 'metal-practice') {
+                metalPracticeInput.classList.remove('hidden');
+                metalWorkloadInput.required = true;
+            } else if (type === 'experiment') {
+                experimentInput.classList.remove('hidden');
+                experimentWorkloadInput.required = true;
+            }
+        });
+
+        // 学时/学分切换
+        hourTypeRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'hours') {
+                    hoursInput.classList.remove('hidden');
+                    creditInput.classList.add('hidden');
+                    classHoursInput.required = true;
+                    classCreditInput.required = false;
+                } else {
+                    hoursInput.classList.add('hidden');
+                    creditInput.classList.remove('hidden');
+                    classHoursInput.required = false;
+                    classCreditInput.required = true;
+                }
+            });
+        });
+
+        // 计算合班系数（适配完整挡位）
+        function getClassCoeff(size) {
+            if (size <= 40) return 1.1;
+            if (size <= 50) return 1.15;
+            if (size <= 60) return 1.2;
+            if (size <= 70) return 1.25;
+            if (size <= 80) return 1.3;
+            if (size <= 90) return 1.35;
+            if (size <= 100) return 1.4;
+            return 1.45; // ≥101人
+        }
+
+        // 计算课程系数
+        function getCourseCoeff(type) {
+            return ['public-basic','major-basic'].includes(type) ? 1.1 : 1.0;
+        }
+
+        // 添加课程
+        courseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const type = courseType.value;
+            const name = courseNameInput.value || '未命名课程';
+            let courseData = { id: Date.now(), name, type };
+            let workload = 0;
+            let inputInfo = '';
+            let calcDesc = '';
+
+            // 处理不同课程类型
+            if (['public-basic','major-basic','normal'].includes(type)) {
+                const size = parseInt(document.getElementById('class-size').value);
+                const hourType = document.querySelector('input[name="hour-type"]:checked').value;
+                let hours = hourType === 'hours' ? parseFloat(classHoursInput.value) : parseFloat(classCreditInput.value) * 16;
+                const courseCoeff = getCourseCoeff(type);
+                const classCoeff = getClassCoeff(size);
+                workload = (hours * courseCoeff * classCoeff).toFixed(2);
+                inputInfo = hourType === 'hours' ? `人数：${size} | 学时：${hours}` : `人数：${size} | 学分：${classCreditInput.value}→学时：${hours}`;
+                calcDesc = `学时×${courseCoeff}×${classCoeff}`;
+                courseData = { ...courseData, size, hours, workload, inputInfo, calcDesc };
+            } else if (type === 'grad-design') {
+                const size = parseInt(document.getElementById('grad-class-size').value);
+                workload = (14 * size).toFixed(2);
+                inputInfo = `人数：${size}`;
+                calcDesc = '14×人数';
+                courseData = { ...courseData, size, workload, inputInfo, calcDesc };
+            } else if (type === 'metal-practice') {
+                workload = parseFloat(metalWorkloadInput.value).toFixed(2);
+                inputInfo = `工作量：${workload}`;
+                calcDesc = '直接填入工作量';
+                courseData = { ...courseData, workload, inputInfo, calcDesc };
+            } else if (type === 'experiment') {
+                workload = parseFloat(experimentWorkloadInput.value).toFixed(2);
+                inputInfo = `工作量：${workload}`;
+                calcDesc = '直接填入工作量';
+                courseData = { ...courseData, workload, inputInfo, calcDesc };
+            }
+
+            // 添加并更新
+            courses.push(courseData);
+            updateStats();
+            renderList();
+            courseForm.reset();
+            courseNameInput.readOnly = false;
+            alert('课程添加成功！');
+        });
+
+        // 更新统计
+        function updateStats() {
+            totalCourses = courses.length;
+            totalHours = courses.reduce((sum, c) => c.hours ? sum + c.hours : sum, 0).toFixed(1);
+            totalWorkload = courses.reduce((sum, c) => sum + parseFloat(c.workload), 0).toFixed(2);
+            totalCoursesEl.textContent = totalCourses;
+            totalHoursEl.textContent = totalHours;
+            totalWorkloadEl.textContent = totalWorkload;
+                 // 关键：将最新课程数据保存到本地存储（刷新/关闭页面后不丢失）
+            localStorage.setItem('courses', JSON.stringify(courses));
+        }
+
+        // 渲染课程列表
+        function renderList() {
+            if (courses.length === 0) {
+                courseListEmpty.classList.remove('hidden');
+                courseList.classList.add('hidden');
+                return;
+            }
+            courseListEmpty.classList.add('hidden');
+            courseList.classList.remove('hidden');
+            courseTableBody.innerHTML = '';
+
+            courses.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium">${c.name}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500">${getTypeName(c.type)}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500">${c.inputInfo}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500">${c.calcDesc}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-primary">${c.workload}</div></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <button data-id="${c.id}" class="delete-btn text-red-600 hover:text-red-900">
+                            <<i class="fa fa-trash"></</i> 删除
+                        </button>
+                    </td>
+                `;
+                courseTableBody.appendChild(tr);
+            });
+
+            // 绑定删除事件
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    courses = courses.filter(c => c.id !== parseInt(this.dataset.id));
+                    updateStats();
+                    renderList();
+                });
+            });
+        }
+
+        // 获取课程类型名称
+        function getTypeName(type) {
+            const map = {
+                'public-basic': '公共基础课',
+                'major-basic': '专业基础课',
+                'normal': '其他课程',
+                'grad-design': '毕业设计',
+                'metal-practice': '金工实习',
+                'experiment': '实验课'
+            };
+            return map[type];
+        }
+
+        // 清空所有
+        clearAllBtn.addEventListener('click', function() {
+            if (confirm('确定清空所有课程吗？')) {
+                courses = [];
+                updateStats();
+                renderList();
+            }
+        });
+
+        // 导出Excel（添加总工作量行）
+        exportExcelBtn.addEventListener('click', function() {
+            if (courses.length === 0) {
+                alert('暂无数据可导出');
+                return;
+            }
+            const data = courses.map(c => ({
+                '课程名称': c.name,
+                '课程类型': getTypeName(c.type),
+                '录入信息': c.inputInfo,
+                '计算说明': c.calcDesc,
+                '工作量（标时）': c.workload
+            }));
+            // 追加总工作量行
+            data.push({
+                '课程名称': '总计',
+                '课程类型': '',
+                '录入信息': '',
+                '计算说明': '',
+                '工作量（标时）': totalWorkload
+            });
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, '工作量数据');
+            XLSX.writeFile(wb, `工作量数据_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`);
+        });
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            setCurrentDate();
+             // 关键：页面加载时，从本地存储读取之前保存的课程数据
+            const savedCourses = localStorage.getItem('courses');
+            if (savedCourses) {
+                // 解析本地存储的JSON数据到courses数组
+                courses = JSON.parse(savedCourses);
+            }
+            updateStats();
+            renderList();
+        });
+    </script>
+</body>
+</html>
